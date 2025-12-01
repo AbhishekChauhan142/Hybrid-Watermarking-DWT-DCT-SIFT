@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 *.pkl
 
-# Ignore result/output images & logs
-results/
+# Ignore result/output logs
 *.log
 .DS_Store
