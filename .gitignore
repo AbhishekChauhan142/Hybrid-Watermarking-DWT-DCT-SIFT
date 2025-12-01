@@ -1,0 +1,9 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pkl
+
+# Ignore result/output images & logs
+results/
+*.log
+.DS_Store
