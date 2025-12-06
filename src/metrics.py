@@ -1,25 +1,13 @@
 import numpy as np
-from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import structural_similarity as ssim
 
+def compute_ber(original_bits, extracted_bits):
+    errors = np.count_nonzero(original_bits.flatten() != extracted_bits.flatten())
+    return errors / original_bits.size
 
-def psnr(orig, wm):
-    return peak_signal_noise_ratio(orig, wm, data_range=255)
-
-
-def ssim(orig, wm):
-    return structural_similarity(orig, wm, data_range=255)
-
-
-def nc(w, w_rec):
-    w = w.astype(np.float32).flatten()
-    w_rec = w_rec.astype(np.float32).flatten()
-    num = float((w * w_rec).sum())
-    den = float((w ** 2).sum() ** 0.5 * (w_rec ** 2).sum() ** 0.5)
-    return num / den if den != 0 else 0.0
-
-
-def ber(w, w_rec):
-    wb = (w > 127).astype(np.uint8).flatten()
-    wr = (w_rec > 127).astype(np.uint8).flatten()
-    diff = (wb ^ wr).sum()
-    return diff / len(wb)
+def image_metrics(img1, img2):
+    return {
+        "psnr": psnr(img1, img2, data_range=255),
+        "ssim": ssim(img1, img2, multichannel=True, data_range=255)
+    }

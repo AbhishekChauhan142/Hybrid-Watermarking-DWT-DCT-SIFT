@@ -1,78 +1,47 @@
+import os
 import cv2
 import numpy as np
+from robust_watermark import embed_watermark, extract_watermark, attack_jpeg
+from metrics import image_metrics, compute_ber
 
-from utils import read_gray, save_gray
-from dwt_dct_sift_embed import embed_watermark
-from dwt_dct_sift_extract import extract_watermark
-from metrics import psnr, ssim, nc, ber
-from attacks import add_gaussian_noise, rotate, jpeg_compress
+COVER_DIR = "data/cover"
+WM_DIR = "data/watermark"
+RESULTS = "data/results"
 
+def run_experiment(cover_path, wm_path, alpha=12):
+    cover = cv2.imread(cover_path)
+    wm = cv2.imread(wm_path, cv2.IMREAD_GRAYSCALE)
+    wm_bin = (cv2.resize(wm, (32, 32)) > 128).astype(np.uint8)
 
-def main():
-    # ---------- Config ----------
-    LAMBDA = 0.8          # embedding strength λ (try 0.4, 0.8, 3.0, etc.)
-    USE_ATTACK = False    # set True when you want to test attacks
-    USE_SIFT = USE_ATTACK # use SIFT only when there is geometric distortion
+    watermarked = embed_watermark(cover, wm_bin, alpha=alpha)
+    wm_file = os.path.join(RESULTS, "watermarked", "watermarked.png")
+    cv2.imwrite(wm_file, watermarked)
 
-    # ---------- Paths ----------
-    cover_path = "../data/cover/lena.png"
-    wm_path = "../data/watermark/logo32.png"   # 32x32 watermark
+    attacked = attack_jpeg(watermarked, quality=30)
+    atk_file = os.path.join(RESULTS, "attacked", "attacked.jpg")
+    cv2.imwrite(atk_file, attacked)
 
-    watermarked_path = "../results/watermarked/lena_wm.png"
-    attacked_path    = "../results/attacked/lena_attacked.png"
-    extracted_path   = "../results/extracted/lena_extracted.png"
+    extracted = extract_watermark(attacked, cover, wm_bin.shape, alpha=alpha)
+    ext_file = os.path.join(RESULTS, "extracted", "extracted.png")
+    cv2.imwrite(ext_file, (extracted * 255).astype(np.uint8))
 
-    # ---------- Embedding ----------
-    print("Embedding...")
-    wm_img, sift_data = embed_watermark(
-        cover_path, wm_path, watermarked_path,
-        key=1234, lam=LAMBDA
-    )
+    ber = compute_ber(wm_bin, extracted)
+    metrics = image_metrics(cover, watermarked)
 
-    orig  = read_gray(cover_path)
-    wm_im = read_gray(watermarked_path)
+    print("\n--- Results ---")
+    print("BER:", ber)
+    print("PSNR:", metrics["psnr"])
+    print("SSIM:", metrics["ssim"])
 
-    # Imperceptibility metrics
-    psnr_val = psnr(orig, wm_im)
-    ssim_val = ssim(orig, wm_im)
-    print(f"PSNR (no attack): {psnr_val:.2f} dB")
-    print(f"SSIM (no attack): {ssim_val:.4f}")
+if __name__ == '__main__':
+    covers = os.listdir(COVER_DIR)
+    watermarks = os.listdir(WM_DIR)
 
-    # Debug: max absolute pixel difference
-    diff = np.abs(wm_im.astype(np.float32) - orig.astype(np.float32))
-    print(f"Max |pixel diff|: {diff.max()}")
+    if not covers or not watermarks:
+        print("No images found in cover/ or watermark/.")
+        exit()
 
-    # ---------- Scenario: with or without attack ----------
-    if USE_ATTACK:
-        print("Applying attack (rotation + Gaussian noise)...")
-        attacked = rotate(wm_im, 10)                         # rotation 10°
-        attacked = add_gaussian_noise(attacked, var=0.001)   # Gaussian noise
-        save_gray(attacked_path, attacked)
-    else:
-        print("No attack (just copy watermarked image)...")
-        attacked = wm_im.copy()
-        save_gray(attacked_path, attacked)
+    cover_path = os.path.join(COVER_DIR, covers[0])
+    wm_path = os.path.join(WM_DIR, watermarks[0])
 
-    # ---------- Extraction ----------
-    print("Extracting watermark...")
-    extracted = extract_watermark(attacked, sift_data, use_sift=USE_SIFT)
-    save_gray(extracted_path, extracted)
-
-    # ---------- Metrics on watermark ----------
-    wm_orig = read_gray(wm_path)
-    # resize ground truth watermark to same shape used in embedding
-    wm_orig = cv2.resize(
-        wm_orig,
-        (sift_data["wm_shape"][1], sift_data["wm_shape"][0])
-    )
-
-    nc_val = nc(wm_orig, extracted)
-    ber_val = ber(wm_orig, extracted)
-    print(f"NC:  {nc_val:.4f}")
-    print(f"BER: {ber_val:.6f}")
-
-    print("Done. Check results/ folder.")
-
-
-if __name__ == "__main__":
-    main()
+    run_experiment(cover_path, wm_path)

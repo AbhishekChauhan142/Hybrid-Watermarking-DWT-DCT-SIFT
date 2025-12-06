@@ -1,16 +1,18 @@
 import cv2
-import numpy as np
-import os
 
-out_dir = "../data/watermark"
-os.makedirs(out_dir, exist_ok=True)
+def create_logo(src_path, out_path, size=(32, 32)):
+    img = cv2.imread(src_path, cv2.IMREAD_GRAYSCALE)
+    resized = cv2.resize(img, size)
+    _, binary = cv2.threshold(resized, 128, 255, cv2.THRESH_BINARY)
+    cv2.imwrite(out_path, binary)
+    print("Saved watermark:", out_path)
 
-# 32x32 blank
-img = np.ones((32, 32), dtype=np.uint8) * 255
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--src', required=True)
+    parser.add_argument('--out', default='data/watermark/logo.png')
+    parser.add_argument('--size', type=int, default=32)
+    args = parser.parse_args()
 
-cv2.putText(img, "WM", (1, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,), 1, cv2.LINE_AA)
-
-out_path = os.path.join(out_dir, "logo32.png")
-cv2.imwrite(out_path, img)
-
-print("✅ Saved 32x32 watermark.")
+    create_logo(args.src, args.out, size=(args.size, args.size))

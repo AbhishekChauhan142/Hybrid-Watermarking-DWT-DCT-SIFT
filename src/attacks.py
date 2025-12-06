@@ -1,20 +1,40 @@
+# src/attacks.py
+import argparse
 import cv2
 import numpy as np
+import os
+from robust_watermark import attack_jpeg, attack_gaussian_noise, attack_rotate, attack_crop
 
+def main():
+    parser = argparse.ArgumentParser(description="Apply attacks to an image (wrapping robust_watermark attack functions).")
+    parser.add_argument("--img", required=True, help="Input image path")
+    parser.add_argument("--type", choices=["jpeg","noise","rotate","crop"], default="jpeg", help="Attack type")
+    parser.add_argument("--out", default="results/attacked/attacked.png", help="Output attacked image path")
+    parser.add_argument("--quality", type=int, default=80, help="JPEG quality (only for jpeg attack)")
+    parser.add_argument("--sigma", type=float, default=10.0, help="Gaussian noise sigma (only for noise)")
+    parser.add_argument("--angle", type=float, default=5.0, help="Rotation angle in degrees (only for rotate)")
+    parser.add_argument("--crop_frac", type=float, default=0.1, help="Crop fraction (only for crop)")
+    args = parser.parse_args()
 
-def add_gaussian_noise(img, var=0.001):
-    img_f = img.astype(np.float32) / 255.0
-    noise = np.random.normal(0, var ** 0.5, img.shape)
-    noisy = np.clip(img_f + noise, 0, 1)
-    return (noisy * 255).astype(np.uint8)
+    os.makedirs(os.path.dirname(args.out), exist_ok=True)
 
+    img = cv2.imread(args.img)
+    if img is None:
+        raise FileNotFoundError(args.img)
 
-def rotate(img, angle):
-    h, w = img.shape
-    M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
-    return cv2.warpAffine(img, M, (w, h))
+    if args.type == "jpeg":
+        out_img = attack_jpeg(img, quality=args.quality)
+    elif args.type == "noise":
+        out_img = attack_gaussian_noise(img, sigma=args.sigma)
+    elif args.type == "rotate":
+        out_img = attack_rotate(img, angle=args.angle)
+    elif args.type == "crop":
+        out_img = attack_crop(img, crop_frac=args.crop_frac)
+    else:
+        raise ValueError("Unsupported attack type")
 
+    cv2.imwrite(args.out, out_img)
+    print("Saved attacked image to:", args.out)
 
-def jpeg_compress(path_in, path_out, quality=60):
-    img = cv2.imread(path_in)
-    cv2.imwrite(path_out, img, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
+if __name__ == "__main__":
+    main()
